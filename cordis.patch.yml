@@ -25,6 +25,9 @@
         # 生成失败时是否改用下面的兜底提示词。默认 false：失败就不显示，
         # 不给千篇一律的泛泛建议（与 Claude Code 一致）。
         useFallback: false
+        # 是否把每个会话最近一条提示词存到 ~/.dsh/plugin-data/dsh-next-prompt/suggestions.json。
+        # 打开时，关掉 DSH 再打开、切回会话，只要之后没有新的对话，灰字还在。
+        persistSuggestions: true
         # useFallback 为 true 时，模型不可用、超时或会话还没有内容时使用的兜底提示词（依次轮换）。
         fallbackPrompts:
           - 请总结一下我们刚才讨论的内容，并给出下一步建议。

@@ -5,7 +5,14 @@
  * 运行：node test/host.test.mjs
  */
 
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { apply, name, __internals } from '../lib/index.js'
+
+// 提示词缓存会写到 DSH 主目录；测试一律写进临时目录，不碰真实的 ~/.dsh。
+process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-test-'))
 
 let failures = 0
 function check(label, condition, detail = '') {
@@ -981,6 +988,102 @@ console.log('\n生成异常不缓存')
   check('意外异常写一条警告', h.warnings.some((line) => line.includes('服务暂时不可用')), JSON.stringify(h.warnings))
   const retried = await (await ask()).reply()
   check('同一回合再来要时重新生成', retried.ok === true && retried.candidate === '请继续', JSON.stringify(retried))
+}
+
+console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
+{
+  const header = { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) }
+  const turnEnd = (turn) => ({ type: 'turn/end', data: { turn, reason: { kind: 'completed' } } })
+  const home = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-cache-'))
+  const file = join(home, 'plugin-data', 'dsh-next-prompt', 'suggestions.json')
+  // 会话历史可变：模拟重开前后、以及之后又聊了一轮。
+  let history = turns('帮我写个脚本', '写好了')
+  const sessions = { get: () => ({ deriveMessages: () => eventsToMessages(history), ...header }) }
+  const calls = { count: 0 }
+  const llm = fakeLlm([{ type: 'text-delta', text: '加上错误处理\n' }], () => { calls.count += 1 })
+  const open = (config = {}) => makeHarness({
+    events: true,
+    config: { useFallback: false, ...config },
+    services: { sessions, llm, profileContext: { home } },
+  })
+  const cached = (h, sessionId = 's1') => invoke(h, { method: 'cached', sessionId }).then((x) => x.reply())
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+  const first = open()
+  first.emit('s1', turnEnd(1))
+  const generated = await (await invoke(first, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
+  check('先正常生成一条', generated.ok === true && generated.candidate === '加上错误处理', JSON.stringify(generated))
+  await flush()
+  let saved
+  try { saved = JSON.parse(readFileSync(file, 'utf8')) } catch { saved = undefined }
+  check('写进 DSH 主目录下的缓存文件', saved?.sessions?.s1?.candidate === '加上错误处理', JSON.stringify(saved))
+  first.dispose()
+
+  // 「重开」：新的宿主实例，内存里什么都没有。
+  const reopened = open()
+  const restored = await cached(reopened)
+  check('重开后切回会话能还原', restored.ok === true && restored.candidate === '加上错误处理' && restored.source === 'cache', JSON.stringify(restored))
+  check('还原不调用模型', calls.count === 1, String(calls.count))
+  const other = await cached(reopened, 's2')
+  check('没缓存过的会话返回 NO_CACHE', other.code === 'NO_CACHE', JSON.stringify(other))
+
+  // DSH 插入的切换模型消息不算新对话。
+  history = [...turns('帮我写个脚本', '写好了'), { type: 'user/message', data: { source: { kind: 'model-selection' }, content: [{ type: 'text', text: '切换到 x' }] } }]
+  const afterSwitch = await cached(reopened)
+  check('切换模型后仍能还原', afterSwitch.ok === true, JSON.stringify(afterSwitch))
+
+  // 之后又有了新对话：丢弃，并从文件里删掉。
+  history = turns('帮我写个脚本', '写好了', '再加个参数', '加好了')
+  const stale = await cached(reopened)
+  check('有新对话时不还原', stale.ok === false && stale.code === 'STALE', JSON.stringify(stale))
+  await flush()
+  const afterStale = JSON.parse(readFileSync(file, 'utf8'))
+  check('过期的缓存被删掉', afterStale.sessions.s1 === undefined, JSON.stringify(afterStale))
+
+  // 新回合开始时删掉；按 Escape（dismiss）时删掉。
+  history = turns('帮我写个脚本', '写好了')
+  reopened.emit('s1', turnEnd(2))
+  await (await invoke(reopened, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
+  check('新回合的提示词也会缓存', (await cached(reopened)).ok === true)
+  reopened.emit('s1', { type: 'turn/start', data: { turn: 3 } })
+  check('新回合开始时删掉缓存', (await cached(reopened)).code === 'NO_CACHE')
+  reopened.emit('s1', turnEnd(3))
+  await (await invoke(reopened, { method: 'suggestion', sessionId: 's1', afterTurn: 2, waitMs: 0 })).reply()
+  const dismissed = await (await invoke(reopened, { method: 'dismiss', sessionId: 's1' })).reply()
+  check('dismiss 返回 ok', dismissed.ok === true, JSON.stringify(dismissed))
+  check('dismiss 后不再还原', (await cached(reopened)).code === 'NO_CACHE')
+
+  // 读不到历史（会话还没加载）时不删缓存。
+  reopened.emit('s1', turnEnd(4))
+  await (await invoke(reopened, { method: 'suggestion', sessionId: 's1', afterTurn: 3, waitMs: 0 })).reply()
+  history = []
+  check('读不到历史时返回 NO_CACHE', (await cached(reopened)).code === 'NO_CACHE')
+  history = turns('帮我写个脚本', '写好了')
+  check('历史回来后仍能还原', (await cached(reopened)).ok === true)
+
+  // 关闭缓存：不写盘，也不还原。
+  const offHome = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-off-'))
+  const off = makeHarness({ events: true, config: { useFallback: false, persistSuggestions: false }, services: { sessions, llm, profileContext: { home: offHome } } })
+  off.emit('s1', turnEnd(1))
+  await (await invoke(off, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
+  await flush()
+  let offWritten = true
+  try { readFileSync(join(offHome, 'plugin-data', 'dsh-next-prompt', 'suggestions.json')) } catch { offWritten = false }
+  check('persistSuggestions: false 时不写盘', offWritten === false)
+  check('persistSuggestions: false 时不还原', (await cached(off)).code === 'NO_CACHE')
+
+  // 坏文件当成空缓存，并能被覆盖。
+  const badHome = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-bad-'))
+  const badFile = join(badHome, 'plugin-data', 'dsh-next-prompt', 'suggestions.json')
+  mkdirSync(join(badHome, 'plugin-data', 'dsh-next-prompt'), { recursive: true })
+  writeFileSync(badFile, '{坏的')
+  const bad = makeHarness({ events: true, config: { useFallback: false }, services: { sessions, llm, profileContext: { home: badHome } } })
+  check('坏文件按空缓存处理', (await cached(bad)).code === 'NO_CACHE')
+  check('坏文件写一条警告', bad.warnings.some((line) => line.includes('读取提示词缓存失败')), JSON.stringify(bad.warnings))
+  bad.emit('s1', turnEnd(1))
+  await (await invoke(bad, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
+  await flush()
+  check('坏文件之后能正常写入', JSON.parse(readFileSync(badFile, 'utf8')).sessions.s1?.candidate === '加上错误处理')
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)

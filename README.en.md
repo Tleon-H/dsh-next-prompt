@@ -33,6 +33,7 @@ After installing, **fully quit DSH (including the tray icon) and reopen it**. It
 
 - When a reply finishes and the input box is empty, a gray suggestion appears within a few seconds. Press `Tab` / `→` to accept, `Escape` to dismiss; it hides as soon as you start typing.
 - Just opening or browsing a session never calls the model. No suggestion is generated while the agent is replying, or when the last turn failed or was aborted.
+- After you quit and reopen DSH, switching back to a session brings its last suggestion back, as long as nothing new was said since (no extra model call). Suggestions dismissed with `Escape` stay dismissed.
 - When the conversation has no obvious next step, the model may return no suggestion, and nothing is shown.
 - The plugin does not intercept keys with modifiers, during IME composition, or when the input box is not focused.
 
@@ -46,6 +47,7 @@ Settings live in [cordis.patch.yml](cordis.patch.yml). The most useful ones:
 | `provider` / `model` | `''` | Pin a model for generating suggestions; both must be set. Empty means follow the current session |
 | `timeoutMs` | `20000` | Timeout per generation (ms) |
 | `maxRecentTurns` | `3` | Number of recent messages sent to the model |
+| `persistSuggestions` | `true` | Save each session's latest suggestion to `~/.dsh/plugin-data/dsh-next-prompt/suggestions.json` so it survives a restart; turn off to keep it in memory only |
 
 See the comments in `cordis.patch.yml` for the rest.
 
