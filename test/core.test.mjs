@@ -9,6 +9,7 @@ import {
   DEFAULT_CONFIG,
   buildUserPayload,
   extractRecentTurns,
+  historyFingerprint,
   lastTurnCompleted,
   lastTurnState,
   lastUserText,
@@ -302,6 +303,25 @@ console.log('\nlastTurnCompleted')
     { type: 'user/message', data: { source: { kind: 'goal' }, content: [] } },
   ]) === true)
   check('诊断依据说明来源', lastTurnState([assistant('b'), user('c')]).basis === 'user:user', lastTurnState([assistant('b'), user('c')]).basis)
+}
+
+console.log('\n对话指纹（重开后是否还原提示词）')
+{
+  const user = (text) => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] })
+  const assistant = (text) => ({ role: 'assistant', content: [{ type: 'text', text }] })
+  const injected = (kind) => ({ role: 'user', source: { kind }, content: [{ type: 'text', text: '注入' }] })
+  const base = historyFingerprint([user('a'), assistant('b')])
+  check('有对话时给出指纹', typeof base === 'string' && base !== '', String(base))
+  check('同样的历史指纹相同', historyFingerprint([user('a'), assistant('b')]) === base)
+  check('新对话改变指纹', historyFingerprint([user('a'), assistant('b'), user('c')]) !== base)
+  check('同一句话的不同回复指纹不同', historyFingerprint([user('a'), assistant('b2')]) !== base)
+  check('切换模型等注入消息不改变指纹', historyFingerprint([user('a'), assistant('b'), injected('model-selection'), injected('compact-checkpoint')]) === base)
+  check('压缩掉前面的消息不改变指纹', historyFingerprint([injected('compact-checkpoint'), assistant('b')]) === base)
+  check('回答提问算新对话', historyFingerprint([user('a'), assistant('b'), injected('user-question-reply')]) !== base)
+  check('事件形状也能取指纹', typeof historyFingerprint([{ type: 'assistant/message', data: { message: { content: [] } } }]) === 'string')
+  check('没有对话时返回 undefined', historyFingerprint([]) === undefined && historyFingerprint(undefined) === undefined
+    && historyFingerprint([injected('goal')]) === undefined)
+  check('persistSuggestions 默认开启', DEFAULT_CONFIG.persistSuggestions === true && resolveConfig({ persistSuggestions: false }).persistSuggestions === false)
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)

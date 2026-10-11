@@ -313,7 +313,20 @@ function setup(options = {}) {
     json: async () => ({ ok: true, candidate: '请继续，并说明判断依据', source: 'model' }),
   }))
 
+  /**
+   * 磁盘缓存相关的请求（cached / dismiss）单独记录，不计入 fetchCalls：
+   * 既有用例数的是「请求模型」的次数。默认宿主没有缓存。
+   */
+  const cacheCalls = []
+  let cachePlan = options.cachePlan ?? (async () => ({ json: async () => ({ ok: false, code: 'NO_CACHE' }) }))
+
   windowStub.fetch = (url, init) => {
+    let method
+    try { method = JSON.parse(init?.body ?? '{}').method } catch { method = undefined }
+    if (method === 'cached' || method === 'dismiss') {
+      cacheCalls.push({ url, init, method })
+      return Promise.resolve(cachePlan(url, init))
+    }
     fetchCalls.push({ url, init })
     return Promise.resolve(fetchPlan(url, init))
   }
@@ -462,6 +475,8 @@ function setup(options = {}) {
     injectedSlots,
     warnings,
     fetchCalls,
+    cacheCalls,
+    setCachePlan(next) { cachePlan = next },
     styleTags,
     observedTargets,
     ghost,
@@ -1485,6 +1500,75 @@ console.log('\n锁定、取消、卸载与共享状态回归')
   check('剩余实例仍可关闭候选', shared.findGhostNode(other.flush()) === null)
   other.unmount()
   check('最后实例卸载恢复 placeholder', shared.input.getAttribute('data-dsh-next-prompt') === null)
+}
+
+console.log('\n重开 DSH 后还原提示词')
+{
+  const restoring = async () => ({ json: async () => ({ ok: true, candidate: '上次没发的那句', source: 'cache' }) })
+  const props = (sessionId = 'a', extra = {}) => ({ sessionId, input: { draft: '', phase: 'idle' }, session: { running: false }, inputActions: { setDraft() {} }, ...extra })
+
+  // 只打开会话：不请求模型，但问一次缓存，拿到就显示。
+  const env = setup({ primeTurn: false, cachePlan: restoring })
+  env.ghost.render(props())
+  await settle()
+  const tree = env.ghost.flush()
+  check('打开会话时问一次缓存', env.cacheCalls.length === 1 && env.cacheCalls[0].method === 'cached'
+    && JSON.parse(env.cacheCalls[0].init.body).sessionId === 'a', JSON.stringify(env.cacheCalls.map((c) => c.init.body)))
+  check('还原时不请求模型', env.fetchCalls.length === 0, String(env.fetchCalls.length))
+  check('还原后显示灰字', env.findGhostNode(tree)?.children?.[0] === '上次没发的那句', String(env.findGhostNode(tree)?.children?.[0]))
+  env.ghost.render(props())
+  await settle()
+  check('重渲染不重复问缓存', env.cacheCalls.length === 1, String(env.cacheCalls.length))
+
+  // 切走再切回：内存里的状态为准，不再问。
+  env.ghost.render(props('b'))
+  await settle()
+  env.ghost.flush()
+  env.ghost.render(props('a'))
+  await settle()
+  check('每个会话只问一次', env.cacheCalls.filter((c) => JSON.parse(c.init.body).sessionId === 'a').length === 1
+    && env.cacheCalls.length === 2, JSON.stringify(env.cacheCalls.map((c) => c.init.body)))
+
+  // 按 Escape 关掉：通知宿主删缓存。
+  env.documentStub.activeElement = env.input
+  const escapeTree = env.ghost.flush()
+  check('切回后灰字仍在', env.findGhostNode(escapeTree) !== null)
+  env.dispatchKey('Escape')
+  await settle()
+  check('Escape 时通知宿主删掉缓存', env.cacheCalls.some((c) => c.method === 'dismiss' && JSON.parse(c.init.body).sessionId === 'a'),
+    JSON.stringify(env.cacheCalls.map((c) => c.init.body)))
+
+  // 没有缓存：什么都不显示。
+  const none = setup({ primeTurn: false })
+  none.ghost.render(props())
+  await settle()
+  check('没有缓存时不显示', none.findGhostNode(none.ghost.flush()) === null && none.cacheCalls.length === 1)
+
+  // 正在回答时打开：缓存已过时，不问。
+  const running = setup({ primeTurn: false, cachePlan: restoring })
+  running.ghost.render(props('a', { session: { running: true } }))
+  await settle()
+  check('回答中不问缓存', running.cacheCalls.length === 0, String(running.cacheCalls.length))
+  running.ghost.render(props())
+  await settle()
+  check('回答结束后也不再问（走正常生成）', running.cacheCalls.length === 0 && running.fetchCalls.length === 1,
+    `${running.cacheCalls.length} / ${running.fetchCalls.length}`)
+
+  // 缓存回来之前已经开始新回合：丢弃旧结果。
+  let answer
+  const late = setup({ primeTurn: false, cachePlan: () => new Promise((resolve) => { answer = resolve }) })
+  late.setFetchPlan(() => new Promise(() => {}))
+  late.ghost.render(props())
+  late.ghost.render(props('a', { session: { running: true } }))
+  answer({ json: async () => ({ ok: true, candidate: '过时的', source: 'cache' }) })
+  await settle()
+  check('新回合开始后到达的缓存被丢弃', late.findGhostNode(late.ghost.flush()) === null)
+
+  // 宿主出错：安静失败。
+  const failing = setup({ primeTurn: false, cachePlan: async () => { throw new Error('网络错误') } })
+  failing.ghost.render(props())
+  await settle()
+  check('问缓存失败时不显示也不报错', failing.findGhostNode(failing.ghost.flush()) === null)
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)

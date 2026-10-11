@@ -33,6 +33,7 @@ dsh plugin --profile desktop add dsh-next-prompt
 
 - 回答结束且输入框为空时，几秒内出现灰字；按 `Tab` / `→` 采纳，按 `Escape` 关闭，开始打字时灰字自动隐藏。
 - 只是打开或翻看会话不会调用模型；Agent 回答中、上一轮出错或被中止时也不会生成。
+- 关掉 DSH 再打开、切回某个会话时，只要之后没有新的对话，上次的灰字还在（不会重新调用模型）。按 `Escape` 关掉的不会再出现。
 - 对话没有明显下一步时，模型可能不给建议，这时不显示灰字。
 - 带修饰键的组合键、输入法组字、输入框没有焦点时，插件不拦截按键。
 
@@ -46,6 +47,7 @@ dsh plugin --profile desktop add dsh-next-prompt
 | `provider` / `model` | `''` | 固定用来生成提示词的模型，两项都填才生效；留空则跟随当前会话 |
 | `timeoutMs` | `20000` | 单次生成超时（毫秒） |
 | `maxRecentTurns` | `3` | 发给模型的最近消息条数 |
+| `persistSuggestions` | `true` | 把每个会话最近一条灰字存到 `~/.dsh/plugin-data/dsh-next-prompt/suggestions.json`，重开 DSH 后还原；关掉则只保留在内存里 |
 
 其余配置项见 `cordis.patch.yml` 里的注释。
 

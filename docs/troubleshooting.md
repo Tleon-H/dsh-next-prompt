@@ -40,5 +40,6 @@ fetch('/dsh-next-prompt/rpc',{method:'POST',headers:{'content-type':'application
 | `trigger` | 「宿主监听回合结束」为正常；「浏览器半察觉回答结束」表示这个 DSH 不支持回合事件，已自动退回旧做法 |
 | `eventsReceived` | 后台收到的会话事件总数；为 0 说明事件没有送到插件 |
 | `trackedSessions` | 正在跟踪回合的会话数 |
+| `cachedSessions` | 磁盘里缓存了灰字的会话数（重开 DSH 后用来还原）；`未开启` 表示 `persistSuggestions` 关掉了 |
 | `config` | 当前生效的关键配置 |
 | `recent` | 最近的生成记录：时间、会话、回合号、耗时、`result`、原因 `message` 与详情 `detail`（模型、正文字数、结束原因、错误、是否重试过、正文开头） |

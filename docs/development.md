@@ -16,6 +16,8 @@
 
 退路：DSH 没有 `ctx.on`，或后台一次都没收到某个会话的事件时，改由界面决定时机，后台按最后几条消息推断上一轮是否正常结束。若将来 DSH 提供原生内联建议（`inputActions.offerSuggestion`），界面会自动改用原生显示。
 
+**重开后还原灰字**：模型生成成功后，后台把提示词连同当时最后一条对话消息的指纹（`historyFingerprint`，忽略切换模型、压缩上下文等 DSH 插入的消息）写进 `<DSH 主目录>/plugin-data/dsh-next-prompt/suggestions.json`（主目录取 `profileContext.home`，退回 `$DSH_HOME` 或 `~/.dsh`；最多 200 个会话，整文件原子替换）。界面第一次挂载某个会话、内存里又没有提示词时问一次（`method: 'cached'`），指纹对得上才还原，对不上就删掉；`turn/start` 和 Escape（`method: 'dismiss'`）也会删掉。关掉 `persistSuggestions` 则完全不读写磁盘。
+
 **↑ 的流程**：界面拦截空输入框上的 `↑`，向后台要这个会话最后一条真人消息（`method: 'lastSent'`），拿到后 `setDraft()`。等待期间你开始打字或切换会话，结果就丢弃。
 
 **接口的安全边界**：只接受 POST；TCP 对端和 `Host` 都必须是本机回环地址；带 `Origin` 时必须与连接精确同源；`Sec-Fetch-Site: cross-site` 一律拒绝。桌面端转发请求时会去掉 `Origin`，所以没有 `Origin` 时放行。插件没有做用户级鉴权。
@@ -46,7 +48,8 @@ dsh-next-prompt/
 ├── cordis.patch.yml    profile 补丁：插件行与全部配置项（含中文注释）
 ├── lib/
 │   ├── core.js         纯逻辑：配置归一化、脱敏、取最近对话、判断上一轮是否完成、清洗模型输出
-│   ├── index.js        后台：回合跟踪、RPC（suggestion / lastSent / diagnostics）、调用模型、诊断记录
+│   ├── index.js        后台：回合跟踪、RPC（suggestion / lastSent / cached / dismiss / diagnostics）、调用模型、诊断记录
+│   ├── cache.js        后台：提示词的磁盘缓存（重开 DSH 后还原灰字）
 │   └── client.js       界面：灰字浮层、Tab / → / ↑ / Escape、会话状态、样式注入
 └── test/
     ├── core.test.mjs   纯逻辑
@@ -81,3 +84,4 @@ git push --follow-tags
 8. 回答进行中：不出现灰字。
 9. 回答出错或中途停止：不出现灰字。
 10. 输入框为空时按 `↑`：填入上一次发送的内容；有字时按 `↑`，光标正常上移。
+11. 有灰字时完全退出 DSH 再打开，切回这个会话：灰字还在，且诊断里没有新的生成记录；按 `Escape` 关掉后再重开，不再出现。
