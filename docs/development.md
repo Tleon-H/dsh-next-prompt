@@ -16,7 +16,7 @@
 
 退路：DSH 没有 `ctx.on`，或后台一次都没收到某个会话的事件时，改由界面决定时机，后台按最后几条消息推断上一轮是否正常结束。若将来 DSH 提供原生内联建议（`inputActions.offerSuggestion`），界面会自动改用原生显示。
 
-**重开后还原灰字**：模型生成成功后，后台把提示词连同当时最后一条对话消息的指纹（`historyFingerprint`，忽略切换模型、压缩上下文等 DSH 插入的消息）写进 `<DSH 主目录>/plugin-data/dsh-next-prompt/suggestions.json`（主目录取 `profileContext.home`，退回 `$DSH_HOME` 或 `~/.dsh`；最多 200 个会话，整文件原子替换）。界面第一次挂载某个会话、内存里又没有提示词时问一次（`method: 'cached'`），指纹对得上才还原，对不上就删掉；`turn/start` 和 Escape（`method: 'dismiss'`）也会删掉。关掉 `persistSuggestions` 则完全不读写磁盘。
+**重开后还原灰字**：模型生成成功后，后台把提示词连同当时最后一条对话消息的指纹（`historyFingerprint`，忽略切换模型、压缩上下文等 DSH 插入的消息）写进 `<DSH 主目录>/plugin-data/dsh-next-prompt/suggestions.json`（主目录取 `profileContext.home`，退回 `$DSH_HOME` 或 `~/.dsh`；最多 200 个会话，整文件原子替换）。界面第一次挂载某个会话、内存里又没有提示词时问一次（`method: 'cached'`），指纹对得上才还原，对不上就删掉。重开后会话要等用户在里面发消息才会加载（`sessions.get()` 取不到），这时没法核对，直接信任缓存，因为插件运行期间每次 `turn/start` 都会删掉缓存；会话已加载却读不到历史时回 `NOT_READY`，界面每 1.5 秒再问，最多 4 次。`turn/start` 和 Escape（`method: 'dismiss'`）也会删掉。关掉 `persistSuggestions` 则完全不读写磁盘。
 
 **↑ 的流程**：界面拦截空输入框上的 `↑`，向后台要这个会话最后一条真人消息（`method: 'lastSent'`），拿到后 `setDraft()`。等待期间你开始打字或切换会话，结果就丢弃。
 

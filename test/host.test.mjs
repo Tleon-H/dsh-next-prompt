@@ -1064,6 +1064,12 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   check('还原结果写进诊断', restoreDiag.some((r) => r.result === 'cache') && restoreDiag.some((r) => r.result === 'STALE')
     && restoreDiag.some((r) => r.result === 'NOT_READY'), JSON.stringify(restoreDiag.map((r) => r.result)))
 
+  // 重开后会话还不是 live（sessions.get 取不到）：信任缓存。
+  await flush()
+  const notLive = makeHarness({ events: true, config: { useFallback: false }, services: { sessions: { get: () => undefined }, llm, profileContext: { home } } })
+  const unverified = await cached(notLive)
+  check('会话还没加载时直接用缓存', unverified.ok === true && unverified.candidate === '加上错误处理' && unverified.verified === false, JSON.stringify(unverified))
+
   // 关闭缓存：不写盘，也不还原。
   const offHome = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-off-'))
   const off = makeHarness({ events: true, config: { useFallback: false, persistSuggestions: false }, services: { sessions, llm, profileContext: { home: offHome } } })
