@@ -1057,9 +1057,18 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   reopened.emit('s1', turnEnd(4))
   await (await invoke(reopened, { method: 'suggestion', sessionId: 's1', afterTurn: 3, waitMs: 0 })).reply()
   history = []
-  check('读不到历史时返回 NO_CACHE', (await cached(reopened)).code === 'NO_CACHE')
+  check('读不到历史时返回 NOT_READY', (await cached(reopened)).code === 'NOT_READY')
   history = turns('帮我写个脚本', '写好了')
   check('历史回来后仍能还原', (await cached(reopened)).ok === true)
+  const restoreDiag = (await (await invoke(reopened, { method: 'diagnostics' })).reply()).recent.filter((r) => r.trigger === 'restore')
+  check('还原结果写进诊断', restoreDiag.some((r) => r.result === 'cache') && restoreDiag.some((r) => r.result === 'STALE')
+    && restoreDiag.some((r) => r.result === 'NOT_READY'), JSON.stringify(restoreDiag.map((r) => r.result)))
+
+  // 重开后会话还不是 live（sessions.get 取不到）：信任缓存。
+  await flush()
+  const notLive = makeHarness({ events: true, config: { useFallback: false }, services: { sessions: { get: () => undefined }, llm, profileContext: { home } } })
+  const unverified = await cached(notLive)
+  check('会话还没加载时直接用缓存', unverified.ok === true && unverified.candidate === '加上错误处理' && unverified.verified === false, JSON.stringify(unverified))
 
   // 关闭缓存：不写盘，也不还原。
   const offHome = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-off-'))

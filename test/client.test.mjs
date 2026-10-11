@@ -1564,6 +1564,18 @@ console.log('\n重开 DSH 后还原提示词')
   await settle()
   check('新回合开始后到达的缓存被丢弃', late.findGhostNode(late.ghost.flush()) === null)
 
+  // 宿主刚启动、会话还没加载好：隔一会儿再问。
+  let asked = 0
+  const notReady = setup({ primeTurn: false, cachePlan: async () => {
+    asked += 1
+    return { json: async () => (asked === 1 ? { ok: false, code: 'NOT_READY' } : { ok: true, candidate: '稍后还原的', source: 'cache' }) }
+  } })
+  notReady.ghost.render(props())
+  await settle()
+  check('会话没加载好时先不显示', notReady.findGhostNode(notReady.ghost.flush()) === null && asked === 1)
+  await new Promise((resolve) => setTimeout(resolve, 1700))
+  check('稍后重试并还原', asked === 2 && notReady.findGhostNode(notReady.ghost.flush())?.children?.[0] === '稍后还原的', String(asked))
+
   // 宿主出错：安静失败。
   const failing = setup({ primeTurn: false, cachePlan: async () => { throw new Error('网络错误') } })
   failing.ghost.render(props())
