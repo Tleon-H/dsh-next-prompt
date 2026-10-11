@@ -317,6 +317,13 @@ console.log('\n对话指纹（重开后是否还原提示词）')
   check('同一句话的不同回复指纹不同', historyFingerprint([user('a'), assistant('b2')]) !== base)
   check('切换模型等注入消息不改变指纹', historyFingerprint([user('a'), assistant('b'), injected('model-selection'), injected('compact-checkpoint')]) === base)
   check('压缩掉前面的消息不改变指纹', historyFingerprint([injected('compact-checkpoint'), assistant('b')]) === base)
+  check('附带字段变化不改变指纹（重开后从日志读回）',
+    historyFingerprint([user('a'), { ...assistant('b'), reasoning: 'x', usage: { input: 1 } }]) === base)
+  check('内容块的附带字段变化不改变指纹',
+    historyFingerprint([user('a'), { role: 'assistant', content: [{ type: 'text', text: 'b', providerMeta: { sig: 'z' } }] }]) === base)
+  check('只有工具调用时按调用 id 区分',
+    historyFingerprint([{ role: 'assistant', content: [{ type: 'tool-call', id: 't1' }] }])
+      !== historyFingerprint([{ role: 'assistant', content: [{ type: 'tool-call', id: 't2' }] }]))
   check('回答提问算新对话', historyFingerprint([user('a'), assistant('b'), injected('user-question-reply')]) !== base)
   check('事件形状也能取指纹', typeof historyFingerprint([{ type: 'assistant/message', data: { message: { content: [] } } }]) === 'string')
   check('没有对话时返回 undefined', historyFingerprint([]) === undefined && historyFingerprint(undefined) === undefined
