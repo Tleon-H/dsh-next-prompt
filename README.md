@@ -54,8 +54,8 @@ dsh plugin --profile desktop add dsh-next-prompt
 插件复用你在 DSH 里配好的模型和密钥，本身不需要任何凭据。如果当前模型带思考、比较慢，或者装了会自动切换模型的插件，建议固定一个响应快、不带思考的模型，例如：
 
 ```yaml
-        provider: 'workbuddy'
-        model: 'glm-5.3-flash'
+        provider: 'deepseek'
+        model: 'deepseek-flash'
 ```
 
 发给模型的只有最近几条对话的文字，常见格式的密钥和 token 会先被替换成「[已隐藏]」，但不能保证识别所有敏感信息。

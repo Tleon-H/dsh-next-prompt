@@ -54,8 +54,8 @@ See the comments in `cordis.patch.yml` for the rest.
 The plugin reuses the models and API keys you already configured in DSH and needs no credentials of its own. If your chat model is slow or always reasons, or you use a plugin that switches models automatically, pin a fast non-reasoning model, for example:
 
 ```yaml
-        provider: 'workbuddy'
-        model: 'glm-5.3-flash'
+        provider: 'deepseek'
+        model: 'deepseek-flash'
 ```
 
 Only the text of the last few messages is sent to the model. Common key and token formats are masked first, but this pattern-based masking cannot catch every secret.
