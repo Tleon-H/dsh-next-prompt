@@ -1,6 +1,6 @@
 {
   "name": "dsh-next-prompt",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "DeepSeek Harness 插件：Agent 回答结束后在输入框预填一条灰色的下一句建议，按 Tab 或 → 采纳；输入框为空时按 ↑ 填入上一次发送的内容。",
   "type": "module",
   "main": "lib/index.js",
