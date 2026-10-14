@@ -1,5 +1,6 @@
 # 推送 v* 标签时发布到 npm，例如：
 #   npm version patch && git push --follow-tags
+# 也可以在 Actions 页面对 main 手动运行（workflow_dispatch），发布 package.json 里的当前版本。
 # 使用 npm 的 Trusted Publishing（OIDC），仓库里不需要保存 npm 令牌；
 # 首次使用前要在 npmjs.com 的包设置里把本仓库和这个 workflow 登记为可信发布者。
 # npm 只允许给已存在的包登记可信发布者，所以新包名（如 0.5.0 改名后的 dsh-next-prompt）
@@ -9,6 +10,7 @@ name: publish
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,10 +28,15 @@ jobs:
           # 刻意不设 registry-url：设了之后 setup-node 会写入一条 _authToken 占位凭据，
           # 它会盖过 OIDC 换来的令牌，导致 npm publish 报 ENEEDAUTH。npm 默认就发到 npmjs.org。
           node-version: 24
-      - name: 检查标签与 package.json 版本一致
+      - name: 检查发布来源
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "手动发布只能在 main 上运行，当前是 $GITHUB_REF"
+              exit 1
+            fi
+          elif [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "标签 $GITHUB_REF_NAME 与 package.json 的版本 $version 不一致"
             exit 1
           fi
