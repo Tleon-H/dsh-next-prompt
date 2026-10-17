@@ -247,6 +247,12 @@ function setup(options = {}) {
   card.appendChild(input)
 
   const styleTags = []
+  // 模拟插件更新前页面里留下的旧版样式标签。
+  if (options.staleStyle !== undefined) {
+    const stale = makeElement('style')
+    stale.textContent = options.staleStyle
+    styleTags.push(stale)
+  }
   const keydownListeners = new Set()
   const resizeListeners = new Set()
   const scrollListeners = new Set()
@@ -546,6 +552,14 @@ console.log('加载契约')
   check('样式是灰色幽灵文本风格', env.styleTags[0]?.textContent?.includes('dsh-pp-ghost') === true)
   check('样式使用主题三级文字色', env.styleTags[0]?.textContent?.includes('--dsw-alias-label-tertiary') === true)
   check('幽灵文本不接收鼠标事件', env.styleTags[0]?.textContent?.includes('pointer-events: none') === true)
+}
+
+console.log('\n插件更新后的样式')
+{
+  const env = setup({ staleStyle: '.dsh-pp-ghost { color: red; }' })
+  check('不重复插入样式标签', env.styleTags.length === 1, String(env.styleTags.length))
+  check('旧样式被换成当前版本', env.styleTags[0]?.textContent?.includes('dsh-pp-ghost') === true
+    && env.styleTags[0]?.textContent?.includes('color: red') === false)
 }
 
 console.log('\n降级行为')

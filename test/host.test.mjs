@@ -66,7 +66,8 @@ function makeHarness(options = {}) {
     warnings,
     infos,
     get route() { return route },
-    dispose: () => { for (const disposal of disposals.reverse()) disposal?.() },
+    /** 依次卸载，返回各个 disposer 的返回值（异步 disposer 是 promise，DSH 会等它）。 */
+    dispose: () => disposals.reverse().map((disposal) => disposal?.()),
     listeners,
     /** 模拟 DSH 派发一条会话事件。 */
     emit(sessionId, event) {
@@ -1008,16 +1009,30 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   })
   const cached = (h, sessionId = 's1') => invoke(h, { method: 'cached', sessionId }).then((x) => x.reply())
   const flush = () => new Promise((resolve) => setTimeout(resolve, 50))
+  /**
+   * 等缓存文件写成期望的样子再读：写盘是异步的，CI 机器慢时固定等 50ms 不够。
+   * 最多等 2 秒，超时返回最后读到的内容（可能是 undefined），交给调用方的 check 报错。
+   */
+  async function readCacheWhen(path, ok) {
+    let parsed
+    for (const deadline = Date.now() + 2000; Date.now() < deadline;) {
+      try { parsed = JSON.parse(readFileSync(path, 'utf8')) } catch { parsed = undefined }
+      if (ok(parsed)) return parsed
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    return parsed
+  }
 
   const first = open()
   first.emit('s1', turnEnd(1))
   const generated = await (await invoke(first, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
   check('先正常生成一条', generated.ok === true && generated.candidate === '加上错误处理', JSON.stringify(generated))
-  await flush()
-  let saved
-  try { saved = JSON.parse(readFileSync(file, 'utf8')) } catch { saved = undefined }
+  const saved = await readCacheWhen(file, (parsed) => parsed?.sessions?.s1 !== undefined)
   check('写进 DSH 主目录下的缓存文件', saved?.sessions?.s1?.candidate === '加上错误处理', JSON.stringify(saved))
-  first.dispose()
+  const disposing = first.dispose()
+  check('卸载时把写盘的 promise 交给 DSH 等待（热更新时新实例紧接着读文件）',
+    disposing.some((result) => typeof result?.then === 'function'))
+  await Promise.all(disposing)
 
   // 「重开」：新的宿主实例，内存里什么都没有。
   const reopened = open()
@@ -1036,9 +1051,8 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   history = turns('帮我写个脚本', '写好了', '再加个参数', '加好了')
   const stale = await cached(reopened)
   check('有新对话时不还原', stale.ok === false && stale.code === 'STALE', JSON.stringify(stale))
-  await flush()
-  const afterStale = JSON.parse(readFileSync(file, 'utf8'))
-  check('过期的缓存被删掉', afterStale.sessions.s1 === undefined, JSON.stringify(afterStale))
+  const afterStale = await readCacheWhen(file, (parsed) => parsed !== undefined && parsed.sessions.s1 === undefined)
+  check('过期的缓存被删掉', afterStale !== undefined && afterStale.sessions.s1 === undefined, JSON.stringify(afterStale))
 
   // 新回合开始时删掉；按 Escape（dismiss）时删掉。
   history = turns('帮我写个脚本', '写好了')
@@ -1065,7 +1079,7 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
     && restoreDiag.some((r) => r.result === 'NOT_READY'), JSON.stringify(restoreDiag.map((r) => r.result)))
 
   // 重开后会话还不是 live（sessions.get 取不到）：信任缓存。
-  await flush()
+  await readCacheWhen(file, (parsed) => parsed?.sessions?.s1 !== undefined)
   const notLive = makeHarness({ events: true, config: { useFallback: false }, services: { sessions: { get: () => undefined }, llm, profileContext: { home } } })
   const unverified = await cached(notLive)
   check('会话还没加载时直接用缓存', unverified.ok === true && unverified.candidate === '加上错误处理' && unverified.verified === false, JSON.stringify(unverified))
@@ -1091,8 +1105,8 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   check('坏文件写一条警告', bad.warnings.some((line) => line.includes('读取提示词缓存失败')), JSON.stringify(bad.warnings))
   bad.emit('s1', turnEnd(1))
   await (await invoke(bad, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
-  await flush()
-  check('坏文件之后能正常写入', JSON.parse(readFileSync(badFile, 'utf8')).sessions.s1?.candidate === '加上错误处理')
+  const rewritten = await readCacheWhen(badFile, (parsed) => parsed?.sessions?.s1 !== undefined)
+  check('坏文件之后能正常写入', rewritten?.sessions?.s1?.candidate === '加上错误处理')
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)

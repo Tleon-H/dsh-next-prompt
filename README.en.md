@@ -14,7 +14,7 @@ Both only fill the input box. **Nothing is ever sent automatically.**
 
 > This plugin was called `dsh-prompt-prefill` before 0.5.0. If you installed the old one, run `dsh plugin --profile desktop remove dsh-prompt-prefill` first, then install as below.
 
-Tested on DSH desktop **0.2.0-rc.2** (other versions are untested).
+Tested on DSH desktop **0.2.1-rc.2** and **0.2.0-rc.2** (other versions are untested).
 
 ## Install
 
@@ -22,11 +22,11 @@ Tested on DSH desktop **0.2.0-rc.2** (other versions are untested).
 dsh plugin --profile desktop add dsh-next-prompt
 ```
 
-After installing, **fully quit DSH (including the tray icon) and reopen it**. It is best to quit DSH before installing too, otherwise the command waits for DSH to release its file lock.
+From DSH 0.2.1 on, no restart is needed: run the command while DSH is open and the plugin takes effect right away. On earlier versions, **fully quit DSH (including the tray icon) and reopen it** after installing; it is best to quit DSH before installing too, otherwise the command waits for DSH to release its file lock.
 
 - Latest code from the repository: `dsh plugin --profile desktop add github:Tleon-H/dsh-next-prompt`
 - Web version of DSH: replace `--profile desktop` with your own profile (usually `--profile web`)
-- Update: `remove` and `add` again, then restart DSH
+- Update: `remove` and `add` again (DSH before 0.2.1 also needs a restart)
 - Uninstall: `dsh plugin --profile desktop remove dsh-next-prompt`
 
 ## Usage
