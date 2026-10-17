@@ -45,7 +45,7 @@
     "url": "https://github.com/Tleon-H/dsh-next-prompt/issues"
   },
   "scripts": {
-    "test": "node --test test/core.test.mjs test/host.test.mjs test/client.test.mjs",
+    "test": "node --test test/core.test.mjs test/host.test.mjs test/cache.test.mjs test/client.test.mjs",
     "prepublishOnly": "npm test"
   },
   "engines": {

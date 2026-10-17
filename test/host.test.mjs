@@ -66,7 +66,8 @@ function makeHarness(options = {}) {
     warnings,
     infos,
     get route() { return route },
-    dispose: () => { for (const disposal of disposals.reverse()) disposal?.() },
+    /** 依次卸载，返回各个 disposer 的返回值（异步 disposer 是 promise，DSH 会等它）。 */
+    dispose: () => disposals.reverse().map((disposal) => disposal?.()),
     listeners,
     /** 模拟 DSH 派发一条会话事件。 */
     emit(sessionId, event) {
@@ -1017,7 +1018,10 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   let saved
   try { saved = JSON.parse(readFileSync(file, 'utf8')) } catch { saved = undefined }
   check('写进 DSH 主目录下的缓存文件', saved?.sessions?.s1?.candidate === '加上错误处理', JSON.stringify(saved))
-  first.dispose()
+  const disposing = first.dispose()
+  check('卸载时把写盘的 promise 交给 DSH 等待（热更新时新实例紧接着读文件）',
+    disposing.some((result) => typeof result?.then === 'function'))
+  await Promise.all(disposing)
 
   // 「重开」：新的宿主实例，内存里什么都没有。
   const reopened = open()
