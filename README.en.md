@@ -8,7 +8,7 @@
 A DeepSeek Harness (DSH) desktop plugin that adds two small features to the input box:
 
 - **→ / Tab: accept a suggested next prompt.** When the agent finishes replying, a light gray suggestion appears in the empty input box, guessing what you are likely to say next based on the recent conversation. Press `Tab` or `→` to put it into your draft.
-- **↑: recall your last message.** With the input box empty, press `↑` to fill in the last message you sent in this session.
+- **↑ / ↓: browse what you sent.** With the input box empty, press `↑` to fill in the last message you sent in this session; keep pressing `↑` to go further back and `↓` to come forward again.
 
 Both only fill the input box. **Nothing is ever sent automatically.**
 
@@ -63,8 +63,9 @@ Only the text of the last few messages is sent to the model. Common key and toke
 ## Notes
 
 - The gray text is an overlay aligned with the input box; very long suggestions may be cut off visually, but accepting still inserts the full text.
-- `↑` only recalls the most recent message, text only (no image attachments).
-- Do not install alongside other plugins that also intercept `Tab` / `→` / `↑` (see [similar plugins](docs/similar-plugins.md)).
+- Once you edit a recalled message, `↑` / `↓` move the cursor again; in a multi-line message the caret has to reach the start (`↑`) or end (`↓`) before it moves on. Pressing `↓` on the newest message clears the input box.
+- Text only; image attachments are not restored.
+- Do not install alongside other plugins that also intercept `Tab` / `→` / `↑` / `↓` (see [similar plugins](docs/similar-plugins.md)).
 
 ## More docs (Chinese)
 

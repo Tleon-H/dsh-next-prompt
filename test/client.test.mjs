@@ -924,6 +924,73 @@ console.log('\n按 ↑ 回填上一次发送的内容')
   await settle()
   check('宿主半 404 时不写入', missing.drafted.length === 0)
 
+  // ↑ / ↓ 连续翻历史。宿主按 index 返回，0 是最近一条。
+  const sent = ['第三句', '第二句', '第一句']
+  const paging = async (url, init) => {
+    const body = JSON.parse(init.body)
+    if (body.method !== 'lastSent') return { json: async () => ({ ok: true, candidate: '请继续' }) }
+    const index = body.index ?? 0
+    return { json: async () => (index < sent.length ? { ok: true, text: sent[index], index } : { ok: false, code: 'END_OF_HISTORY', message: '已经是最早的一条' }) }
+  }
+  const nav = make({ fetchPlan: paging })
+  /** 模拟宿主把草稿写进输入框后的重渲染。 */
+  const show = (text) => {
+    nav.env.input.value = text
+    nav.env.ghost.render({ ...nav.props, input: { draft: text, phase: 'idle' } })
+  }
+  const indexes = () => lastSentCalls(nav.env).map((call) => JSON.parse(call.init.body).index)
+  nav.env.dispatchKey('ArrowUp')
+  await settle()
+  show(nav.drafted.at(-1))
+  const up2 = nav.env.dispatchKey('ArrowUp')
+  await settle()
+  check('原文未改时再按 ↑ 被拦截', up2.defaultPrevented === true)
+  check('再按 ↑ 取更早一条', nav.drafted.at(-1) === '第二句', JSON.stringify(nav.drafted))
+  show(nav.drafted.at(-1))
+  nav.env.dispatchKey('ArrowUp')
+  await settle()
+  show(nav.drafted.at(-1))
+  check('第三次 ↑ 取到最早一条', nav.drafted.at(-1) === '第一句', JSON.stringify(nav.drafted))
+  nav.env.dispatchKey('ArrowUp')
+  await settle()
+  check('翻到底后再按 ↑ 不改草稿', nav.drafted.length === 3 && nav.drafted.at(-1) === '第一句', JSON.stringify(nav.drafted))
+  check('请求依次带上 index', JSON.stringify(indexes()) === JSON.stringify([0, 1, 2, 3]), JSON.stringify(indexes()))
+  const down = nav.env.dispatchKey('ArrowDown')
+  await settle()
+  check('↓ 被拦截并往回翻', down.defaultPrevented === true && nav.drafted.at(-1) === '第二句', JSON.stringify(nav.drafted))
+  show(nav.drafted.at(-1))
+  nav.env.dispatchKey('ArrowDown')
+  await settle()
+  show(nav.drafted.at(-1))
+  check('再按 ↓ 回到最近一条', nav.drafted.at(-1) === '第三句', JSON.stringify(nav.drafted))
+  const requestsBeforeClear = lastSentCalls(nav.env).length
+  nav.env.dispatchKey('ArrowDown')
+  check('在最近一条上按 ↓ 清空输入框', nav.drafted.at(-1) === '', JSON.stringify(nav.drafted))
+  check('清空不发请求', lastSentCalls(nav.env).length === requestsBeforeClear)
+  show('')
+  const emptyDown = nav.env.dispatchKey('ArrowDown')
+  check('空输入框按 ↓ 不拦截', !emptyDown.defaultPrevented)
+
+  // 改过翻出的内容后，↑ / ↓ 交还给光标移动。
+  const edited = make({ fetchPlan: paging })
+  edited.env.dispatchKey('ArrowUp')
+  await settle()
+  edited.env.input.value = '第三句，再改改'
+  edited.env.ghost.render({ ...edited.props, input: { draft: '第三句，再改改', phase: 'idle' } })
+  const editedUp = edited.env.dispatchKey('ArrowUp')
+  const editedDown = edited.env.dispatchKey('ArrowDown')
+  check('改过后 ↑ / ↓ 不拦截', !editedUp.defaultPrevented && !editedDown.defaultPrevented && lastSentCalls(edited.env).length === 1)
+
+  // 多行原文：读不到光标位置时不拦截，留给光标在行间移动。
+  sent[0] = '第一行\n第二行'
+  const multi = make({ fetchPlan: paging })
+  multi.env.dispatchKey('ArrowUp')
+  await settle()
+  multi.env.input.value = '第一行\n第二行'
+  multi.env.ghost.render({ ...multi.props, input: { draft: '第一行\n第二行', phase: 'idle' } })
+  check('多行原文读不到光标时 ↑ 不拦截', !multi.env.dispatchKey('ArrowUp').defaultPrevented)
+  sent[0] = '第三句'
+
   // claimed 时幽灵文本也隐藏。
   const claimed = setup()
   const claimedProps = { sessionId: 'c', input: { draft: '', phase: 'claimed' }, inputActions: { setDraft() {} }, session: { sessionId: 'c', running: false } }

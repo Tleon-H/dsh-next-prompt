@@ -14,4 +14,4 @@
 | [converk/dsh-tweaks · prompt-history](https://github.com/converk/dsh-tweaks/tree/main/plugins/prompt-history) | 空输入框 ↑ / ↓ 连续翻历史，显示位置角标 |
 | [PerryLink/dsh-composer-history](https://github.com/PerryLink/dsh-composer-history) | 终端风格的输入历史，支持 Ctrl+R 搜索 |
 
-它们同样会拦截 `Tab` / `→` / `↑`，**不要与本插件同时安装**。本插件的特点是把「下一句建议」和「上一条回填」放在一个小插件里，并带诊断记录，方便排查。
+它们同样会拦截 `Tab` / `→` / `↑` / `↓`，**不要与本插件同时安装**。本插件的特点是把「下一句建议」和「历史回填」放在一个小插件里，并带诊断记录，方便排查。
