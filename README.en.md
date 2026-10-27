@@ -14,7 +14,7 @@ Both only fill the input box. **Nothing is ever sent automatically.**
 
 > This plugin was called `dsh-prompt-prefill` before 0.5.0. If you installed the old one, run `dsh plugin --profile desktop remove dsh-prompt-prefill` first, then install as below.
 
-Tested on DSH desktop **0.2.1-rc.2** and **0.2.0-rc.2** (other versions are untested).
+Tested on DSH desktop **0.2.1-rc.3**, **0.2.1-rc.2** and **0.2.0-rc.2** (other versions are untested).
 
 ## Install
 

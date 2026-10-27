@@ -14,7 +14,7 @@ DeepSeek Harness（DSH）桌面端插件，给输入框加两个小功能：
 
 > 本插件原名 `dsh-prompt-prefill`，0.5.0 起改名为 `dsh-next-prompt`。装过旧版的话，先 `dsh plugin --profile desktop remove dsh-prompt-prefill`，再按下面的方法安装新版。
 
-适用版本：DSH 桌面端 **0.2.1-rc.2**、**0.2.0-rc.2**（其他版本未验证）。
+适用版本：DSH 桌面端 **0.2.1-rc.3**、**0.2.1-rc.2**、**0.2.0-rc.2**（其他版本未验证）。
 
 ## 安装
 
