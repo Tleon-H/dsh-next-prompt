@@ -375,6 +375,17 @@ console.log('\n↑ 回填：lastSent')
   const off = makeHarness({ config: { enabled: false }, services: { sessions: fakeSessions(turns('你好')) } })
   const offReply = await (await invoke(off, { method: 'lastSent', sessionId: 's1' })).reply()
   check('插件关闭时不回填', offReply.code === 'DISABLED', JSON.stringify(offReply))
+
+  // ↑ / ↓ 连续翻：index 0 是最近一条，越大越早。
+  const paged = makeHarness({ services: { sessions: fakeSessions(turns('第一句', '回复一', '第二句', '回复二', '第三句', '回复三')) } })
+  const at = async (index) => (await (await invoke(paged, { method: 'lastSent', sessionId: 's1', index })).reply())
+  check('index 0 是最近一条', (await at(0)).text === '第三句')
+  const second = await at(1)
+  check('index 1 是倒数第二条', second.ok === true && second.text === '第二句' && second.index === 1, JSON.stringify(second))
+  check('index 2 是最早一条', (await at(2)).text === '第一句')
+  const past = await at(3)
+  check('翻过最早一条返回 END_OF_HISTORY', past.ok === false && past.code === 'END_OF_HISTORY', JSON.stringify(past))
+  check('非法 index 按 0 处理', (await at(-1)).text === '第三句' && (await at('2')).text === '第三句')
 }
 
 console.log('\n诊断记录')

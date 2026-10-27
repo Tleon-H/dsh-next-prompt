@@ -13,6 +13,7 @@ import {
   lastTurnCompleted,
   lastTurnState,
   lastUserText,
+  userTexts,
   parseCandidate,
   pickFallback,
   redactSecrets,
@@ -270,6 +271,11 @@ console.log('\nlastUserText')
   check('跳过纯空白消息', lastUserText([user('有内容'), user('   ')]) === '有内容')
   check('旧式事件也能取', lastUserText([{ type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: '事件' }] } }]) === '事件')
   check('没有用户消息返回 undefined', lastUserText([assistant('x')]) === undefined && lastUserText(undefined) === undefined)
+  const history = [user('一'), assistant('回复'), user('二'), user('工具', 'tool'), user('二'), assistant('回复'), user('三')]
+  check('userTexts 最新的在前', JSON.stringify(userTexts(history)) === JSON.stringify(['三', '二', '一']), JSON.stringify(userTexts(history)))
+  check('userTexts 相邻重复只留一条', userTexts([user('同'), user('同'), user('异'), user('同')]).join() === '同,异,同')
+  check('userTexts 按 limit 截断', userTexts(history, 2).join() === '三,二')
+  check('userTexts 没有历史返回空数组', userTexts(undefined).length === 0 && userTexts([assistant('x')]).length === 0)
 }
 
 console.log('\nlastTurnCompleted')
