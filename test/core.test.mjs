@@ -13,6 +13,7 @@ import {
   lastTurnCompleted,
   lastTurnState,
   lastUserText,
+  liveConfig,
   userTexts,
   parseCandidate,
   pickFallback,
@@ -258,6 +259,20 @@ console.log('\n工具函数')
   check('truncate 短文本原样返回', truncate('abc', 10) === 'abc')
   check('truncate 长文本加省略号', truncate('abcdef', 3) === 'abc…')
   check('truncate 非法上限返回空串', truncate('abc', 0) === '')
+}
+
+console.log('\nliveConfig')
+{
+  const ref = (value) => ({ value, get() { return this.value } })
+  const timeout = ref(5000)
+  const live = liveConfig({ timeoutMs: timeout, model: 'flash', enabled: ref('不是布尔') })
+  check('读出 volatile 引用的当前值', live.timeoutMs === 5000)
+  timeout.value = 9000
+  check('引用变了再读就是新值', live.timeoutMs === 9000)
+  check('普通值原样使用', live.model === 'flash')
+  check('引用里的值类型不对时用默认值', live.enabled === true)
+  check('没给的键用默认值', live.maxRecentTurns === 3 && live.fallbackPrompts.length === 3)
+  check('不能被改写', Object.isFrozen(live))
 }
 
 console.log('\nlastUserText')

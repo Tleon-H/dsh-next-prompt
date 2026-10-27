@@ -39,7 +39,7 @@ From DSH 0.2.1 on, no restart is needed: run the command while DSH is open and t
 
 ## Configuration
 
-Settings live in [cordis.patch.yml](cordis.patch.yml). The most useful ones:
+Open this plugin on DSH's Plugins page to edit the settings below; changes take effect immediately, with no reinstall or restart. You can also set them in [cordis.patch.yml](cordis.patch.yml). The most useful ones:
 
 | Key | Default | Description |
 | --- | --- | --- |

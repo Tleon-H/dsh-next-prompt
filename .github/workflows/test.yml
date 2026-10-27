@@ -1,5 +1,5 @@
 # 每次推送或提交 PR 时，在 Node.js 22 与 24 上运行全部测试。
-# 测试不依赖任何第三方包，因此不需要安装依赖。
+# 设置页表单的测试要用到开发依赖 @deepseek-ai/schemastery，所以先装依赖。
 name: test
 
 on:
@@ -20,4 +20,5 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
+      - run: npm ci
       - run: npm test

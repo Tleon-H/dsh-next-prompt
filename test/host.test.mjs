@@ -9,7 +9,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { apply, name, __internals } from '../lib/index.js'
+import { apply, Config, name, __internals } from '../lib/index.js'
+import { DEFAULT_CONFIG } from '../lib/core.js'
 
 // 提示词缓存会写到 DSH 主目录；测试一律写进临时目录，不碰真实的 ~/.dsh。
 process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-test-'))
@@ -1118,6 +1119,47 @@ console.log('\n重开 DSH 后还原提示词（磁盘缓存）')
   await (await invoke(bad, { method: 'suggestion', sessionId: 's1', afterTurn: -1, waitMs: 0 })).reply()
   const rewritten = await readCacheWhen(badFile, (parsed) => parsed?.sessions?.s1 !== undefined)
   check('坏文件之后能正常写入', rewritten?.sessions?.s1?.candidate === '加上错误处理')
+}
+
+console.log('\n设置页表单：Config schema')
+{
+  check('导出 Schemastery 的 Config', Config?.[Symbol.for('schemastery')] === true && Config.type === 'object')
+  const fields = Object.entries(Config?.dict ?? {})
+  check('覆盖全部配置项', fields.map(([key]) => key).sort().join() === Object.keys(DEFAULT_CONFIG).sort().join(), fields.map(([key]) => key).join())
+  check('每一项都是 volatile（表单里可改）', fields.every(([, field]) => field.meta.volatile === true))
+  check('每一项都有说明文字', fields.every(([, field]) => typeof field.meta.description === 'string' && field.meta.description !== ''))
+  const parsed = Config({})
+  check('默认值与 DEFAULT_CONFIG 一致', Object.keys(DEFAULT_CONFIG).every((key) => JSON.stringify(parsed[key].get()) === JSON.stringify(DEFAULT_CONFIG[key])))
+  let loaded = true
+  let loose
+  try {
+    loose = Config({ timeoutMs: '很久', enabled: 'yes' })
+  } catch {
+    loaded = false
+  }
+  check('类型写错时退回默认值而不是加载失败', loaded && loose.timeoutMs.get() === 20000 && loose.enabled.get() === true)
+
+  // 用 schema 解析出的配置（全是 volatile 引用）也能正常工作。
+  const viaSchema = makeHarness({ config: Config({ useFallback: false }), services: { sessions: fakeSessions(turns('你好', '你好呀')) } })
+  const viaReply = await (await invoke(viaSchema, { method: 'lastSent', sessionId: 's1' })).reply()
+  check('schema 解析出的配置可以直接使用', viaReply.ok === true && viaReply.text === '你好', JSON.stringify(viaReply))
+
+  // 在设置页改了值：不重新加载插件，下一次请求就用新值。
+  const ref = (value) => ({ value, get() { return this.value } })
+  const enabled = ref(true)
+  const live = makeHarness({ config: { enabled }, services: { sessions: fakeSessions(turns('你好', '你好呀')) } })
+  check('改之前正常回填', (await (await invoke(live, { method: 'lastSent', sessionId: 's1' })).reply()).ok === true)
+  enabled.value = false
+  check('关掉开关后立即生效', (await (await invoke(live, { method: 'lastSent', sessionId: 's1' })).reply()).code === 'DISABLED')
+
+  const persist = ref(false)
+  const home = mkdtempSync(join(tmpdir(), 'dsh-next-prompt-live-'))
+  const toggled = makeHarness({ config: { persistSuggestions: persist }, services: { sessions: fakeSessions([]), profileContext: { home } } })
+  const before = await (await invoke(toggled, { method: 'cached', sessionId: 's1' })).reply()
+  check('缓存关着时不读盘', before.code === 'NO_CACHE' && before.message === '没有开启提示词缓存', JSON.stringify(before))
+  persist.value = true
+  const after = await (await invoke(toggled, { method: 'cached', sessionId: 's1' })).reply()
+  check('打开缓存后立即生效', after.code === 'NO_CACHE' && after.message === '这个会话没有缓存的提示词', JSON.stringify(after))
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)
