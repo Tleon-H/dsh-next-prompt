@@ -342,6 +342,7 @@ function setup(options = {}) {
 
   const requireStub = (specifier) => {
     if (specifier === 'react') return runtime.react
+    if (specifier === '@deepseek-ai/dsh-client-ui-primitives' && options.primitives) return options.primitives
     throw new Error(`unexpected require: ${specifier}`)
   }
 
@@ -546,7 +547,8 @@ console.log('加载契约')
   check('声明注入 slots', Array.isArray(env.plugin.inject) && env.plugin.inject.includes('slots'))
   check('导出 apply', typeof env.plugin.apply === 'function')
   check('注册进 conversation.input.overlay', env.injectedSlots[0] === 'conversation.input.overlay', JSON.stringify(env.injectedSlots))
-  check('注册了一个组件', env.registrations.length === 1, String(env.registrations.length))
+  check('注册了浮层和配置页两个组件', env.registrations.length === 2, String(env.registrations.length))
+  check('配置页注册进 plugins.row.config', env.injectedSlots.includes('plugins.row.config') && env.registrations[1]?.registration?.key === 'dsh-next-prompt#next-prompt', JSON.stringify(env.registrations[1]?.registration))
   check('注册项带自有 id', env.registrations[0]?.registration?.id === 'next-prompt')
   check('注入了样式标签', env.styleTags.length === 1, String(env.styleTags.length))
   check('样式是灰色幽灵文本风格', env.styleTags[0]?.textContent?.includes('dsh-pp-ghost') === true)
@@ -1662,6 +1664,84 @@ console.log('\n重开 DSH 后还原提示词')
   failing.ghost.render(props())
   await settle()
   check('问缓存失败时不显示也不报错', failing.findGhostNode(failing.ghost.flush()) === null)
+}
+
+console.log('\n插件页的配置表单')
+{
+  const SettingsForm = function SettingsForm() {}
+  const SettingsValueField = function SettingsValueField() {}
+  const Switch = function Switch() {}
+  const primitives = { SettingsForm, SettingsValueField, Switch }
+  const env = setup({ primitives })
+  const { ConfigPage, ConfigFormView, planConfig } = env.plugin.__internals
+  check('配置页组件就是注册进槽位的那个', env.registrations[1]?.component === ConfigPage)
+  check('summary 视图给一句说明', typeof ConfigPage({ view: 'summary' }) === 'string')
+  check('没有 form 时提示读不到配置', ConfigPage({ view: 'page' })?.type === 'p')
+  const noUi = setup()
+  check('没有表单组件时提示改 cordis.patch.yml', String(noUi.plugin.__internals.ConfigPage({ view: 'page', form: { state: {}, mutate() {} } })?.children?.[0]).includes('cordis.patch.yml'))
+
+  const value = { enabled: true, provider: '', model: '', timeoutMs: 20000, maxRecentTurns: 3, maxContextChars: 4000, maxOutputTokens: 512, maxCandidateChars: 1200, persistSuggestions: true, useFallback: false }
+  const state = { status: 'ready', value, base: { ...value }, user: { timeoutMs: 20000 }, writable: true, revision: 7 }
+  const untouched = planConfig(state, {})
+  check('没有改动时不发写入', untouched.ops.length === 0 && !untouched.invalid)
+  check('用户层里有的字段显示已修改', untouched.fields.timeoutMs.overridden === true && untouched.fields.model.overridden === false)
+  check('数字字段显示当前值', untouched.fields.timeoutMs.text === '20000')
+  const edited = planConfig(state, { model: { text: ' deepseek-flash ', clear: false }, timeoutMs: { text: '5000', clear: false } })
+  check('改动变成 set 操作', JSON.stringify(edited.ops) === JSON.stringify([{ op: 'set', path: ['model'], value: 'deepseek-flash' }, { op: 'set', path: ['timeoutMs'], value: 5000 }]), JSON.stringify(edited.ops))
+  check('非正整数是无效值', planConfig(state, { timeoutMs: { text: '-1', clear: false } }).invalid && planConfig(state, { timeoutMs: { text: '1.5', clear: false } }).invalid)
+  check('清空数字字段等于恢复默认', JSON.stringify(planConfig(state, { timeoutMs: { text: '', clear: false } }).ops) === JSON.stringify([{ op: 'unset', path: ['timeoutMs'] }]))
+  check('重置已修改的字段发 unset', JSON.stringify(planConfig(state, { timeoutMs: { text: '20000', clear: true } }).ops) === JSON.stringify([{ op: 'unset', path: ['timeoutMs'] }]))
+  check('重置没修改过的字段不发写入', planConfig(state, { model: { text: '', clear: true } }).ops.length === 0)
+  check('开关字段写布尔值', JSON.stringify(planConfig(state, { enabled: { text: 'false', clear: false } }).ops) === JSON.stringify([{ op: 'set', path: ['enabled'], value: false }]))
+
+  // 渲染表单：改一个开关和一个数字，点保存。
+  const writes = []
+  let accept = true
+  const form = { state, mutate: async (ops, revision) => { writes.push({ ops, revision }); return accept } }
+  const view = env.makeGhost({ primeTurn: false })
+  view.component = ConfigFormView
+  const render = () => view.render({ form, ui: primitives })
+  const controlsOf = (tree) => tree.children[0].children
+  const valueField = (tree, field) => controlsOf(tree).find((node) => node.type === SettingsValueField && node.props.id === `dsh-next-prompt-${field}`)
+  const switchOf = (tree, field) => controlsOf(tree).find((node) => node.props?.key === field)?.children?.[1]
+  let tree = render()
+  check('表单外框是 SettingsForm', tree.type === SettingsForm && tree.props.state.available === true && tree.props.state.dirty === false)
+  check('列出十个字段', controlsOf(tree).length === 10, String(controlsOf(tree).length))
+  check('开关用 Switch 显示当前值', switchOf(tree, 'enabled')?.type === Switch && switchOf(tree, 'enabled').props.checked === true)
+  switchOf(tree, 'enabled').props.onChange(false)
+  valueField(tree, 'timeoutMs').props.onEdit('5000')
+  tree = view.flush()
+  check('改动后可以保存', tree.props.state.dirty === true && tree.props.state.invalid === false)
+  check('开关显示暂存的值', switchOf(tree, 'enabled').props.checked === false)
+  tree.props.onSave()
+  await settle()
+  tree = view.flush()
+  check('保存一次写入全部改动', writes.length === 1 && writes[0].ops.length === 2, JSON.stringify(writes))
+  check('写入带上开始编辑时的修订号', writes[0]?.revision === 7)
+  check('保存成功后清掉暂存', tree.props.state.dirty === false && tree.props.state.failed === false)
+
+  // 宿主拒绝：保留改动并提示失败。
+  accept = false
+  valueField(tree, 'maxRecentTurns').props.onEdit('6')
+  tree = view.flush()
+  tree.props.onSave()
+  await settle()
+  tree = view.flush()
+  check('保存被拒时提示失败并保留改动', tree.props.state.failed === true && tree.props.state.dirty === true && valueField(tree, 'maxRecentTurns').props.text === '6')
+
+  // 无效值不能保存。
+  valueField(tree, 'maxRecentTurns').props.onEdit('abc')
+  tree = view.flush()
+  const before = writes.length
+  tree.props.onSave()
+  await settle()
+  check('无效值标红且不发写入', valueField(view.flush(), 'maxRecentTurns').props.invalid === true && writes.length === before)
+
+  // 只读文档：控件全部禁用。
+  const readOnly = env.makeGhost({ primeTurn: false })
+  readOnly.component = ConfigFormView
+  const readOnlyTree = readOnly.render({ form: { state: { ...state, writable: false }, mutate: async () => true }, ui: primitives })
+  check('只读时控件禁用', valueField(readOnlyTree, 'model').props.disabled === true && switchOf(readOnlyTree, 'enabled').props.disabled === true)
 }
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)
