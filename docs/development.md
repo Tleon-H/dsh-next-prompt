@@ -38,6 +38,8 @@
 8. **灰字与 DSH 自带的输入提示重叠。** 显示灰字时给输入框加 `data-dsh-next-prompt="on"`，用样式隐藏 `[data-composer-placeholder]` 和 `p:last-child:after`，收起时摘掉。
 9. **发给模型的消息用 `RequestUserInput` 形状**（`{ role: 'user', content: [...] }`，不带 `id` 和 `source`）；`MessageSourceMap` 里没有 `plugin` 这个来源。
 
+**设置页表单**：分两半。后台导出 Schemastery 的 `Config`（[lib/schema.js](../lib/schema.js)），DSH 的设置服务只把其中标了 `.volatile()` 的字段交给界面，所以每个字段都是 volatile，并且带 `.loose()`，类型写错时退回默认值而不是让插件加载失败。改了表单后 DSH 不重新加载插件，只更新 volatile 引用里的值，所以后台用 `liveConfig()` 在每次用到时再读；提示词缓存也在第一次用到时才建，`persistSuggestions` 可以随时开关。Schemastery 由宿主提供（可选的 `peerDependencies`），`import` 失败时不导出 `Config`，插件照常工作，诊断里 `settingsForm` 会显示「不可用」。界面半要自己画表单：DSH「插件」页**不会**按 schema 自动生成，而是在本插件行的页面上渲染 `plugins.row.config` 槽位（key 为 `dsh-next-prompt#next-prompt`，即包名加 cordis.patch.yml 里的行 id），把设置快照和写入函数放在 `form` 里传进来。[lib/client.js](../lib/client.js) 注册了这个槽位，用 DSH 共享的 `@deepseek-ai/dsh-client-ui-primitives`（`SettingsForm`、`SettingsValueField`、`Switch`）画表单：改动先暂存，点保存一次写入，与 DSH 自带的设置页一致。兜底提示词列表不在表单里。
+
 ---
 
 ## 文件结构与测试
@@ -50,7 +52,8 @@ dsh-next-prompt/
 │   ├── core.js         纯逻辑：配置归一化、脱敏、取最近对话、判断上一轮是否完成、清洗模型输出
 │   ├── index.js        后台：回合跟踪、RPC（suggestion / lastSent / cached / dismiss / diagnostics）、调用模型、诊断记录
 │   ├── cache.js        后台：提示词的磁盘缓存（重开 DSH 后还原灰字）
-│   └── client.js       界面：灰字浮层、Tab / → / ↑ / ↓ / Escape、会话状态、样式注入
+│   ├── schema.js       后台：设置页表单用的 Config schema
+│   └── client.js       界面：灰字浮层、Tab / → / ↑ / ↓ / Escape、会话状态、样式注入、插件页的配置表单
 └── test/
     ├── core.test.mjs   纯逻辑
     ├── host.test.mjs   后台：路由与安全校验、回合事件、模型失败与重试、诊断
@@ -58,9 +61,10 @@ dsh-next-prompt/
     └── client.test.mjs 界面：自带微型 React 与 DOM，覆盖按键、时机、会话切换与生命周期
 ```
 
-运行测试（需要 Node.js 20 或更高版本）：
+运行测试（需要 Node.js 20 或更高版本；先装开发依赖 `@deepseek-ai/schemastery`，设置页表单的测试要用）：
 
 ```bash
+npm ci
 npm test
 ```
 
@@ -91,3 +95,4 @@ DSH 0.2.1 起桌面端默认开启插件热更新：`dsh plugin` 安装、删除
 
 12. DSH 开着时 `remove` 再 `add` 本插件：命令不卡住；不重启 DSH，发一条消息等回答完，能出灰字。若不出，先刷新窗口再试，还不行再重启 DSH，并记下需要哪一步。
 13. 有灰字时按第 12 条更新一次，再切回这个会话：灰字能还原；`plugin-data/dsh-next-prompt/` 下没有残留的 `.tmp` 文件。
+14. 在 DSH「插件」页打开本插件，再点开 next-prompt 这一行：能看到配置表单。关掉「总开关」后不再出灰字，打开后恢复；改「超时」等数值后不用重启就生效。

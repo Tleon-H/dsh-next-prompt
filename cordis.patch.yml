@@ -1,7 +1,7 @@
 # dsh-next-prompt bundle patch.
 # 一行 host 插件，注册到当前 profile。安装命令：
 #   dsh plugin --profile desktop add ./dsh-next-prompt
-# 下面每一项都是可选的，括号里是默认值。
+# 下面每一项都是可选的，括号里是默认值。也可以在 DSH「插件」页打开本插件直接改。
 - insert:
     - id: next-prompt
       name: dsh-next-prompt
