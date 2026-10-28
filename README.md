@@ -12,6 +12,10 @@ DeepSeek Harness（DSH）桌面端插件，给输入框加两个小功能：
 
 两者都**只填进输入框，不会自动发送**。
 
+![演示：回答结束后出现灰字，按 Tab 采纳；输入框为空时按 ↑ / ↓ 翻看发送过的内容](https://raw.githubusercontent.com/Tleon-H/dsh-next-prompt/main/assets/demo.gif)
+
+<sub>示意动画，实际样式以你的 DSH 主题为准。</sub>
+
 > 本插件原名 `dsh-prompt-prefill`，0.5.0 起改名为 `dsh-next-prompt`。装过旧版的话，先 `dsh plugin --profile desktop remove dsh-prompt-prefill`，再按下面的方法安装新版。
 
 适用版本：DSH 桌面端 **0.2.1-rc.3**、**0.2.1-rc.2**、**0.2.0-rc.2**（其他版本未验证）。
@@ -73,7 +77,7 @@ DSH 0.2.1 起，装完不用重启，DSH 开着时直接运行命令就行，插
 - [开发者文档](docs/development.md)：工作原理、踩过的坑、测试
 - [更新日志](CHANGELOG.md)
 
-个人维护的小项目，欢迎通过 [issue](https://github.com/Tleon-H/dsh-next-prompt/issues) 反馈，但不保证及时回复。
+个人维护的小项目。觉得好用的话，欢迎到 [GitHub](https://github.com/Tleon-H/dsh-next-prompt) 点个 ⭐，这是我知道有人在用的唯一方式；遇到问题或有想法，欢迎提 [issue](https://github.com/Tleon-H/dsh-next-prompt/issues)，但不保证及时回复。
 
 ## License
 
