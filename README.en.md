@@ -12,6 +12,10 @@ A DeepSeek Harness (DSH) desktop plugin that adds two small features to the inpu
 
 Both only fill the input box. **Nothing is ever sent automatically.**
 
+![Demo: a gray suggestion appears after the reply and Tab accepts it; with the input box empty, ↑ / ↓ browse what you sent](https://raw.githubusercontent.com/Tleon-H/dsh-next-prompt/main/assets/demo.gif)
+
+<sub>Illustrative animation; the real look follows your DSH theme.</sub>
+
 > This plugin was called `dsh-prompt-prefill` before 0.5.0. If you installed the old one, run `dsh plugin --profile desktop remove dsh-prompt-prefill` first, then install as below.
 
 Tested on DSH desktop **0.2.1-rc.3**, **0.2.1-rc.2** and **0.2.0-rc.2** (other versions are untested).
@@ -73,7 +77,7 @@ Only the text of the last few messages is sent to the model. Common key and toke
 - [Developer notes](docs/development.md): how it works, pitfalls, tests
 - [Changelog](CHANGELOG.md)
 
-This is a small personal project. Feedback via [issues](https://github.com/Tleon-H/dsh-next-prompt/issues) is welcome, but replies are not guaranteed.
+This is a small personal project. If you find it useful, a ⭐ on [GitHub](https://github.com/Tleon-H/dsh-next-prompt) is the only way I know someone is using it. Bug reports and ideas via [issues](https://github.com/Tleon-H/dsh-next-prompt/issues) are welcome, but replies are not guaranteed.
 
 ## License
 
